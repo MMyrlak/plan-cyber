@@ -23,102 +23,11 @@
     // =========================================================================
     // 1. KONFIGURACJA BAZY SQLITE (TURSO)
     // =========================================================================
-    // Podmień na dane wygenerowane w Kroku 1:
-    const TURSO_DB_URL = "https://twoja-baza-twoj-user.turso.io";
-    const TURSO_AUTH_TOKEN = "twoj_turso_jwt_token";
+    const TURSO_DB_URL = "https://plan-cyber-mmyrlak.aws-eu-central-1.turso.io";
+    const TURSO_AUTH_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJleHAiOjE4MDE5MTk1NTAsImlhdCI6MTc5NDE0MzU1MCwiaWQiOiIwMWExYmI0Ny0yZTAxLTcwM2YtOGRlMC0wMzJiNDM4MjMwNzkiLCJraWQiOiJjTm1nSE1lWks0UWhDV1k2YkRVajNZV2JhaFhBRGdUcGZwZWRJUkVfcEdvIiwicmlkIjoiNzgwNDEzYmYtYjBhYy00N2MzLTk2ZDgtMTU4MzMwMTUzNTdlIn0.BiM7-bZWSNckHMqr2H1STsSjSg7x5Z04pbChKL3HPR924KvyUKqUJx4iRxKI2AMnM4l4aWXQkWD-Bps-dCykAA";
 
     // =========================================================================
-    // 2. KOMPLETNE DANE STARTOWE ZE WSZYSTKICH STRON PDF (INITIAL SEED)
-    // =========================================================================
-    const INITIAL_SEED = [
-      // --- Tydzień 05.10-11.10 ---
-      { id: "c1", weekRange: "05.10-11.10", dayName: "Poniedziałek", date: "05.10", time: "18:30-20:45", type: "wyk", room: "408-Lab. RAu8, 402, 410, 411", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr inż. Artur Noga", notes: "" },
-      { id: "c2", weekRange: "05.10-11.10", dayName: "Wtorek", date: "06.10", time: "16:00-18:15", type: "wyk", room: "@Piotr_Ciepliński", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c3", weekRange: "05.10-11.10", dayName: "Wtorek", date: "06.10", time: "18:30-20:45", type: "wyk", room: "@Piotr_Ciepliński", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c4", weekRange: "05.10-11.10", dayName: "Środa", date: "07.10", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c5", weekRange: "05.10-11.10", dayName: "Środa", date: "07.10", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c6", weekRange: "05.10-11.10", dayName: "Piątek", date: "09.10", time: "16:00-18:15", type: "wyk", room: "@Piotr Gaj", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "dr hab. inż., prof. PŚ Piotr Gaj", notes: "" },
-      { id: "c7", weekRange: "05.10-11.10", dayName: "Piątek", date: "09.10", time: "18:30-20:45", type: "wyk", room: "408-Lab. RAu8, 402, 410, 411", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr inż. Artur Noga", notes: "" },
-      { id: "c8", weekRange: "05.10-11.10", dayName: "Piątek", date: "09.10", time: "18:30-20:45", type: "lab", room: "2029s.lab. 225", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-
-      // --- Tydzień 12.10-18.10 ---
-      { id: "c9", weekRange: "12.10-18.10", dayName: "Poniedziałek", date: "12.10", time: "18:30-20:45", type: "wyk", room: "@Piotr Gaj", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "dr hab. inż., prof. PŚ Piotr Gaj", notes: "" },
-      { id: "c10", weekRange: "12.10-18.10", dayName: "Wtorek", date: "13.10", time: "16:00-18:15", type: "sem", room: "@Albert_Smalcerz", title: "Seminarium dyplomowe", teacher: "dr hab. inż., prof. PŚ Albert Smalcerz", notes: "" },
-      { id: "c11", weekRange: "12.10-18.10", dayName: "Wtorek", date: "13.10", time: "18:30-20:45", type: "wyk", room: "@Piotr_Ciepliński", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c12", weekRange: "12.10-18.10", dayName: "Środa", date: "14.10", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c13", weekRange: "12.10-18.10", dayName: "Środa", date: "14.10", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c14", weekRange: "12.10-18.10", dayName: "Czwartek", date: "15.10", time: "16:00-18:15", type: "wyk", room: "408-Lab. RAu8, 402, 410, 411", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr inż. Artur Noga", notes: "" },
-
-      // --- Tydzień 19.10-25.10 ---
-      { id: "c15", weekRange: "19.10-25.10", dayName: "Poniedziałek", date: "19.10", time: "17:15-19:30", type: "lab", room: "2029-s.lab. 225", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c16", weekRange: "19.10-25.10", dayName: "Poniedziałek", date: "19.10", time: "18:30-20:45", type: "wyk", room: "@Piotr_Gaj", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "dr hab. inż., prof. PŚ Piotr Gaj", notes: "" },
-      { id: "c17", weekRange: "19.10-25.10", dayName: "Wtorek", date: "20.10", time: "16:00-18:15", type: "lab", room: "2038s.lab. 233", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "dr inż. Joanna Lisok", notes: "" },
-      { id: "c18", weekRange: "19.10-25.10", dayName: "Wtorek", date: "20.10", time: "18:30-20:45", type: "lab", room: "2038s.lab. 233", title: "Bezpieczeństwo systemów i sieci komputerowych", teacher: "dr inż. Joanna Lisok", notes: "" },
-      { id: "c19", weekRange: "19.10-25.10", dayName: "Środa", date: "21.10", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c20", weekRange: "19.10-25.10", dayName: "Środa", date: "21.10", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c21", weekRange: "19.10-25.10", dayName: "Czwartek", date: "22.10", time: "16:00-18:15", type: "wyk", room: "@Piotr_Gaj", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "dr hab. inż., prof. PŚ Piotr Gaj", notes: "" },
-      { id: "c22", weekRange: "19.10-25.10", dayName: "Czwartek", date: "22.10", time: "18:30-20:45", type: "wyk", room: "408-Lab. RAu8, 402, 410, 411", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr inż. Artur Noga", notes: "" },
-      { id: "c23", weekRange: "19.10-25.10", dayName: "Piątek", date: "23.10", time: "16:00-18:15", type: "wyk", room: "@Piotr_Ciepliński", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c24", weekRange: "19.10-25.10", dayName: "Piątek", date: "23.10", time: "18:30-20:45", type: "wyk", room: "@Piotr_Ciepliński", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-
-      // --- Tydzień 26.10-01.11 ---
-      { id: "c25", weekRange: "26.10-01.11", dayName: "Środa", date: "28.10", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c26", weekRange: "26.10-01.11", dayName: "Środa", date: "28.10", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c27", weekRange: "26.10-01.11", dayName: "Piątek", date: "30.10", time: "17:00-19:15", type: "lab", room: "2029-s.lab. 225", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-
-      // --- Tydzień 02.11-08.11 ---
-      { id: "c28", weekRange: "02.11-08.11", dayName: "Środa", date: "04.11", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c29", weekRange: "02.11-08.11", dayName: "Środa", date: "04.11", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c30", weekRange: "02.11-08.11", dayName: "Czwartek", date: "05.11", time: "16:00-18:15", type: "wyk", room: "@Piotr_Gaj", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "dr hab. inż., prof. PŚ Piotr Gaj", notes: "" },
-      { id: "c31", weekRange: "02.11-08.11", dayName: "Czwartek", date: "05.11", time: "18:30-20:45", type: "wyk", room: "408-Lab. RAu8, 402, 410, 411", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr inż. Artur Noga", notes: "" },
-
-      // --- Tydzień 16.11-22.11 ---
-      { id: "c32", weekRange: "16.11-22.11", dayName: "Poniedziałek", date: "16.11", time: "16:00-18:15", type: "lab", room: "2029s.lab. 225", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c33", weekRange: "16.11-22.11", dayName: "Wtorek", date: "17.11", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c34", weekRange: "16.11-22.11", dayName: "Wtorek", date: "17.11", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c35", weekRange: "16.11-22.11", dayName: "Środa", date: "18.11", time: "16:30-18:45", type: "lab", room: "2029-s.lab. 225", title: "Modelowanie ryzyka", teacher: "mgr inż. Agnieszka Cieplińska", notes: "" },
-      { id: "c36", weekRange: "16.11-22.11", dayName: "Środa", date: "18.11", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c37", weekRange: "16.11-22.11", dayName: "Środa", date: "18.11", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c38", weekRange: "16.11-22.11", dayName: "Piątek", date: "20.11", time: "16:00-18:15", type: "sem", room: "@Albert_Smalcerz", title: "Seminarium dyplomowe", teacher: "dr hab. inż., prof. PŚ Albert Smalcerz", notes: "" },
-
-      // --- Tydzień 23.11-29.11 ---
-      { id: "c39", weekRange: "23.11-29.11", dayName: "Poniedziałek", date: "23.11", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c40", weekRange: "23.11-29.11", dayName: "Poniedziałek", date: "23.11", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c41", weekRange: "23.11-29.11", dayName: "Środa", date: "25.11", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c42", weekRange: "23.11-29.11", dayName: "Środa", date: "25.11", time: "18:30-20:45", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c43", weekRange: "23.11-29.11", dayName: "Czwartek", date: "26.11", time: "15:00-21:45", type: "lab", room: "ZAJĘCIA W GLIWICACH", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr hab. inż., prof. PŚ Michał Maćkowski", notes: "Zajęcia w Gliwicach (blok)" },
-      { id: "c44", weekRange: "23.11-29.11", dayName: "Piątek", date: "27.11", time: "17:00-19:15", type: "lab", room: "ZAJĘCIA W GLIWICACH", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr hab. inż., prof. PŚ Michał Maćkowski", notes: "Zajęcia w Gliwicach" },
-
-      // --- Tydzień 30.11-06.12 ---
-      { id: "c45", weekRange: "30.11-06.12", dayName: "Poniedziałek", date: "30.11", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c46", weekRange: "30.11-06.12", dayName: "Poniedziałek", date: "30.11", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c47", weekRange: "30.11-06.12", dayName: "Środa", date: "02.12", time: "16:00-18:15", type: "lab", room: "3072s.lab. 353", title: "Postincydentalna analiza laboratoryjna", teacher: "dr inż. Adrian Smagór", notes: "" },
-      { id: "c48", weekRange: "30.11-06.12", dayName: "Środa", date: "02.12", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "mgr inż. Jarosław Walasik", notes: "" },
-      { id: "c49", weekRange: "30.11-06.12", dayName: "Czwartek", date: "03.12", time: "16:00-18:15", type: "sem", room: "@Albert_Smalcerz", title: "Seminarium dyplomowe", teacher: "dr hab. inż., prof. PŚ Albert Smalcerz", notes: "" },
-
-      // --- Tydzień 07.12-13.12 ---
-      { id: "c50", weekRange: "07.12-13.12", dayName: "Poniedziałek", date: "07.12", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c51", weekRange: "07.12-13.12", dayName: "Poniedziałek", date: "07.12", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "mgr inż. Jarosław Walasik", notes: "" },
-      { id: "c52", weekRange: "07.12-13.12", dayName: "Środa", date: "09.12", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo systemów i sieci komputerowych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c53", weekRange: "07.12-13.12", dayName: "Środa", date: "09.12", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c54", weekRange: "07.12-13.12", dayName: "Czwartek", date: "10.12", time: "16:00-18:15", type: "sem", room: "@Albert_Smalcerz", title: "Seminarium dyplomowe", teacher: "dr hab. inż., prof. PŚ Albert Smalcerz", notes: "" },
-      { id: "c55", weekRange: "07.12-13.12", dayName: "Piątek", date: "11.12", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "mgr inż. Jarosław Walasik", notes: "" },
-
-      // --- Tydzień 14.12-20.12 ---
-      { id: "c56", weekRange: "14.12-20.12", dayName: "Poniedziałek", date: "14.12", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "mgr inż. Jarosław Walasik", notes: "" },
-      { id: "c57", weekRange: "14.12-20.12", dayName: "Poniedziałek", date: "14.12", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo transferu sterowania w systemach komunikacyjnych", teacher: "mgr inż. Jarosław Walasik", notes: "" },
-      { id: "c58", weekRange: "14.12-20.12", dayName: "Wtorek", date: "15.12", time: "18:30-20:45", type: "lab", room: "2038s.lab. 233", title: "Bezpieczeństwo systemów i sieci komputerowych", teacher: "dr inż. Joanna Lisok", notes: "" },
-      { id: "c59", weekRange: "14.12-20.12", dayName: "Środa", date: "16.12", time: "18:30-20:45", type: "lab", room: "2038s.lab. 233", title: "Testowanie bezpieczeństwa systemów operacyjnych", teacher: "dr inż. Joanna Lisok", notes: "" },
-      { id: "c60", weekRange: "14.12-20.12", dayName: "Czwartek", date: "17.12", time: "16:00-18:15", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo systemów i sieci komputerowych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c61", weekRange: "14.12-20.12", dayName: "Czwartek", date: "17.12", time: "18:30-20:45", type: "lab", room: "Rockwell-Francuska", title: "Bezpieczeństwo systemów i sieci komputerowych", teacher: "mgr inż. Patryk Nowakowski", notes: "" },
-      { id: "c62", weekRange: "14.12-20.12", dayName: "Piątek", date: "18.12", time: "17:00-19:15", type: "lab", room: "ZAJĘCIA W GLIWICACH", title: "Cyberbezpieczeństwo elektromagnetyczne urządzeń informatyki", teacher: "dr hab. inż., prof. PŚ Michał Maćkowski", notes: "Zajęcia w Gliwicach" },
-
-      // --- Tydzień 21.12-27.12 ---
-      { id: "c63", weekRange: "21.12-27.12", dayName: "Poniedziałek", date: "21.12", time: "16:00-18:15", type: "sem", room: "@Albert_Smalcerz", title: "Seminarium dyplomowe (ostatni dzień zajęć)", teacher: "dr hab. inż., prof. PŚ Albert Smalcerz", notes: "Ostatni dzień zajęć przed przerwą" }
-    ];
-
-    // =========================================================================
-    // 3. SZYFROWANIE E2EE (AES-256-GCM + PBKDF2)
+    // 2. SZYFROWANIE E2EE (AES-256-GCM + PBKDF2)
     // =========================================================================
     async function deriveKey(passphrase) {
       const enc = new TextEncoder();
@@ -162,12 +71,12 @@
         const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
         return JSON.parse(new TextDecoder().decode(decrypted));
       } catch (err) {
-        throw new Error("Błędne hasło lub uszkodzone dane");
+        throw new Error("Błędne hasło grupy lub nieprawidłowe dane");
       }
     }
 
     // =========================================================================
-    // 4. API KLIENTA SQLITE (TURSO HTTP PIPELINE)
+    // 3. API KLIENTA SQLITE (TURSO HTTP PIPELINE)
     // =========================================================================
     async function queryTurso(statements) {
       const url = `${TURSO_DB_URL}/v2/pipeline`;
@@ -194,7 +103,7 @@
     }
 
     // =========================================================================
-    // 5. GŁÓWNA APLIKACJA REACT
+    // 4. GŁÓWNA APLIKACJA REACT
     // =========================================================================
     function App() {
       const [password, setPassword] = useState(sessionStorage.getItem("cyber_plan_pass") || "");
@@ -202,88 +111,68 @@
       const [cryptoKey, setCryptoKey] = useState(null);
       
       const [schedule, setSchedule] = useState([]);
-      const [selectedWeek, setSelectedWeek] = useState("05.10-11.10");
+      const [selectedWeek, setSelectedWeek] = useState("");
       const [editingClass, setEditingClass] = useState(null);
       const [loading, setLoading] = useState(false);
       const [statusMsg, setStatusMsg] = useState("");
 
-      // Odblokowanie bazy hasłem i pobranie rekordów
+      // Pobranie danych z SQLite i deszyfrowanie w pamięci
       const unlockAndFetch = async (pass) => {
         if (!pass) return;
         setLoading(true);
-        setStatusMsg("Weryfikacja hasła i łączenie ze SQLite...");
+        setStatusMsg("Weryfikacja hasła i pobieranie z SQLite...");
         try {
           const key = await deriveKey(pass);
           setCryptoKey(key);
           sessionStorage.setItem("cyber_plan_pass", pass);
 
-          // Pobranie danych z tabeli classes
           const results = await queryTurso(["SELECT * FROM classes;"]);
           const rows = results[0]?.response?.result?.rows || [];
 
           if (rows.length === 0) {
-            // Tabela jest pusta -> automatyczny seed wszystkich zjazdów
-            setStatusMsg("Inicjalizacja tabeli w SQLite danymi początkowymi...");
-            const insertQueries = [];
-            for (const item of INITIAL_SEED) {
-              const enc = await encryptPayload({
-                title: item.title,
-                room: item.room,
-                teacher: item.teacher,
-                notes: item.notes
-              }, key);
+            setSchedule([]);
+            setStatusMsg("");
+            alert("Baza SQLite w Turso jest obecnie pusta.");
+            return;
+          }
 
-              insertQueries.push({
-                sql: "INSERT OR REPLACE INTO classes (id, week_range, day_name, day_date, time, type, enc_payload) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                args: [
-                  { type: "text", value: item.id },
-                  { type: "text", value: item.weekRange },
-                  { type: "text", value: item.dayName },
-                  { type: "text", value: item.date },
-                  { type: "text", value: item.time },
-                  { type: "text", value: item.type },
-                  { type: "text", value: enc }
-                ]
-              });
-            }
-            await queryTurso(insertQueries);
-            setSchedule(INITIAL_SEED);
-          } else {
-            // Deszyfrowanie każdego wiersza otrzymanego z bazy SQLite
-            const decryptedClasses = await Promise.all(rows.map(async r => {
-              const payload = await decryptPayload(r[6].value, key);
-              return {
-                id: r[0].value,
-                weekRange: r[1].value,
-                dayName: r[2].value,
-                date: r[3].value,
-                time: r[4].value,
-                type: r[5].value,
-                title: payload.title,
-                room: payload.room,
-                teacher: payload.teacher,
-                notes: payload.notes
-              };
-            }));
-            setSchedule(decryptedClasses);
+          const decryptedClasses = await Promise.all(rows.map(async r => {
+            const payload = await decryptPayload(r[6].value, key);
+            return {
+              id: r[0].value,
+              weekRange: r[1].value,
+              dayName: r[2].value,
+              date: r[3].value,
+              time: r[4].value,
+              type: r[5].value,
+              title: payload.title,
+              room: payload.room,
+              teacher: payload.teacher,
+              notes: payload.notes
+            };
+          }));
+
+          setSchedule(decryptedClasses);
+          if (!selectedWeek && decryptedClasses.length > 0) {
+            setSelectedWeek(decryptedClasses[0].weekRange);
           }
 
           setIsUnlocked(true);
           setStatusMsg("");
         } catch (err) {
           console.error(err);
-          alert("Błąd dostępu do bazy: " + err.message);
+          alert(err.message);
           setStatusMsg("");
         } finally {
           setLoading(false);
         }
       };
 
-      // Zapis edycji sali do bazy SQLite
+      // Zapis zaktualizowanej sali / przedmiotu do SQLite
       const handleSaveEdit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setStatusMsg("Szyfrowanie i zapis do SQLite...");
+        setStatusMsg("Szyfrowanie i zapis w SQLite...");
         try {
           const enc = await encryptPayload({
             title: editingClass.title,
@@ -302,7 +191,6 @@
             ]
           }]);
 
-          // Zaktualizuj stan lokalny po pomyślnym UPDATE
           setSchedule(schedule.map(c => c.id === editingClass.id ? { ...editingClass } : c));
           setEditingClass(null);
         } catch (err) {
@@ -313,12 +201,11 @@
         }
       };
 
-      // Próba automatycznego odblokowania przy starcie (jeśli hasło w sesji)
       useEffect(() => {
         if (password) unlockAndFetch(password);
       }, []);
 
-      // Ekran logowania / podania hasła
+      // Ekran podania hasła
       if (!isUnlocked) {
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
@@ -367,11 +254,10 @@
         );
       }
 
-      // Widok główny po odblokowaniu
       const availableWeeks = [...new Set(schedule.map(c => c.weekRange))];
-      const filteredClasses = schedule.filter(c => c.weekRange === selectedWeek);
+      const activeWeek = selectedWeek || availableWeeks[0];
+      const filteredClasses = schedule.filter(c => c.weekRange === activeWeek);
 
-      // Grupowanie zajęć wybranego tygodnia według daty
       const groupedByDay = filteredClasses.reduce((acc, curr) => {
         const key = `${curr.dayName} (${curr.date})`;
         if (!acc[key]) acc[key] = [];
@@ -392,7 +278,7 @@
                   <i className="fa-solid fa-database"></i> Turso SQLite + E2EE
                 </span>
               </div>
-              <p className="text-slate-400 text-sm mt-1">Zmiany w salach zapisują się bezpośrednio w chmurze SQLite i są widoczne po F5 dla każdego</p>
+              <p className="text-slate-400 text-sm mt-1">Zmiany sal zapisują się bezpośrednio w chmurze SQLite i są widoczne po F5 dla każdego</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -423,7 +309,7 @@
                   key={idx}
                   onClick={() => setSelectedWeek(week)}
                   className={`px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition border ${
-                    selectedWeek === week
+                    activeWeek === week
                       ? "bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20 font-bold"
                       : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
                   }`}
@@ -469,7 +355,7 @@
                           {cls.title}
                         </h3>
 
-                        {/* Szczegóły: Sala i Prowadzący */}
+                        {/* Sala i Prowadzący */}
                         <div className="space-y-2 text-xs">
                           <div className="flex items-start gap-2">
                             <i className="fa-solid fa-location-dot mt-0.5 text-amber-400 w-3 text-center"></i>
