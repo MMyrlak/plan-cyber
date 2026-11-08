@@ -3,31 +3,53 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan Zajęć Cyberbezpieczeństwo - SQLite & E2EE</title>
-  <!-- Tailwind CSS -->
+  <title>Plan Zajęć - SQLite & E2EE</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React 18 & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- Babel do kompilacji JSX w locie -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- FontAwesome Ikony -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-cyan-500 selection:text-slate-950">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useMemo } = React;
 
     // =========================================================================
-    // 1. KONFIGURACJA BAZY SQLITE (TURSO)
+    // KONFIGURACJA BAZY SQLITE (TURSO)
     // =========================================================================
     const TURSO_DB_URL = "https://plan-cyber-mmyrlak.aws-eu-central-1.turso.io";
     const TURSO_AUTH_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJleHAiOjE4MDE5MTk1NTAsImlhdCI6MTc5NDE0MzU1MCwiaWQiOiIwMWExYmI0Ny0yZTAxLTcwM2YtOGRlMC0wMzJiNDM4MjMwNzkiLCJraWQiOiJjTm1nSE1lWks0UWhDV1k2YkRVajNZV2JhaFhBRGdUcGZwZWRJUkVfcEdvIiwicmlkIjoiNzgwNDEzYmYtYjBhYy00N2MzLTk2ZDgtMTU4MzMwMTUzNTdlIn0.BiM7-bZWSNckHMqr2H1STsSjSg7x5Z04pbChKL3HPR924KvyUKqUJx4iRxKI2AMnM4l4aWXQkWD-Bps-dCykAA";
 
     // =========================================================================
-    // 2. SZYFROWANIE E2EE (AES-256-GCM + PBKDF2)
+    // HELPERY SORTOWANIA KALENDARZOWEGO
+    // =========================================================================
+    function parseDateToAcademicOrder(dateStr) {
+      if (!dateStr) return 999999;
+      const clean = dateStr.trim().split("-")[0];
+      const parts = clean.split(".");
+      if (parts.length < 2) return 999999;
+
+      const day = parseInt(parts[0], 10) || 0;
+      const month = parseInt(parts[1], 10) || 0;
+
+      const academicYearOffset = month >= 9 ? 0 : 1;
+      return academicYearOffset * 10000 + month * 100 + day;
+    }
+
+    const DAY_ORDER = {
+      "Poniedziałek": 1,
+      "Wtorek": 2,
+      "Środa": 3,
+      "Czwartek": 4,
+      "Piątek": 5,
+      "Sobota": 6,
+      "Niedziela": 7
+    };
+
+    // =========================================================================
+    // SZYFROWANIE E2EE (AES-256-GCM + PBKDF2)
     // =========================================================================
     async function deriveKey(passphrase) {
       const enc = new TextEncoder();
@@ -52,7 +74,7 @@
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const encoded = new TextEncoder().encode(JSON.stringify(dataObj));
       const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-      
+
       const combined = new Uint8Array(iv.length + ciphertext.byteLength);
       combined.set(iv, 0);
       combined.set(new Uint8Array(ciphertext), iv.length);
@@ -76,7 +98,7 @@
     }
 
     // =========================================================================
-    // 3. API KLIENTA SQLITE (TURSO HTTP PIPELINE)
+    // API KLIENTA SQLITE (TURSO HTTP PIPELINE)
     // =========================================================================
     async function queryTurso(statements) {
       const url = `${TURSO_DB_URL}/v2/pipeline`;
@@ -103,13 +125,26 @@
     }
 
     // =========================================================================
-    // 4. GŁÓWNA APLIKACJA REACT
+    // ŁADNA NAZWA GRUPY (kosmetyka nagłówka)
+    // =========================================================================
+    const groupTitle = (g) => {
+      if (!g) return "Plan Zajęć";
+      if (g === "cyber") return "s2_IP 3Z/1 Cyberbezpieczeństwo";
+      if (g === "pk") return "s2_IP 3Z/1 PK";
+      return `Plan Zajęć – ${g}`;
+    };
+
+    // =========================================================================
+    // GŁÓWNA APLIKACJA REACT
     // =========================================================================
     function App() {
       const [password, setPassword] = useState(sessionStorage.getItem("cyber_plan_pass") || "");
       const [isUnlocked, setIsUnlocked] = useState(false);
       const [cryptoKey, setCryptoKey] = useState(null);
-      
+
+      // Grupa rozpoznana dynamicznie z odszyfrowanych danych
+      const [currentGroup, setCurrentGroup] = useState(sessionStorage.getItem("cyber_plan_group") || "");
+
       const [schedule, setSchedule] = useState([]);
       const [selectedWeek, setSelectedWeek] = useState("");
       const [modalClass, setModalClass] = useState(null);
@@ -117,47 +152,65 @@
       const [loading, setLoading] = useState(false);
       const [statusMsg, setStatusMsg] = useState("");
 
+      // -----------------------------------------------------------------------
+      // ODBLOKOWANIE + POBIERANIE (try-decrypt: grupa wyznaczana przez klucz)
+      // -----------------------------------------------------------------------
       const unlockAndFetch = async (pass) => {
         if (!pass) return;
         setLoading(true);
         setStatusMsg("Weryfikacja hasła i pobieranie z SQLite...");
         try {
           const key = await deriveKey(pass);
-          setCryptoKey(key);
-          sessionStorage.setItem("cyber_plan_pass", pass);
 
-          const results = await queryTurso(["SELECT * FROM classes ORDER BY updated_at ASC;"]);
+          const results = await queryTurso([
+            "SELECT id, week_range, day_name, day_date, time, type, enc_payload, group_name FROM classes;"
+          ]);
           const rows = results[0]?.response?.result?.rows || [];
 
-          if (rows.length === 0) {
-            setSchedule([]);
-            setIsUnlocked(true);
-            setStatusMsg("");
-            return;
+          const decrypted = [];
+          let detectedGroup = null;
+
+          for (const r of rows) {
+            try {
+              const payload = await decryptPayload(r[6].value, key);
+              const rowGroup = r[7].value || "";
+
+              // Spójność: wszystkie odszyfrowane wiersze muszą być tej samej grupy
+              if (detectedGroup !== null && detectedGroup !== rowGroup) continue;
+              detectedGroup = rowGroup;
+
+              decrypted.push({
+                id: r[0].value,
+                weekRange: r[1].value,
+                dayName: r[2].value,
+                date: r[3].value,
+                time: r[4].value,
+                type: r[5].value,
+                title: payload.title,
+                room: payload.room,
+                teacher: payload.teacher,
+                notes: payload.notes,
+                meetingLink: payload.meetingLink || "",
+                groupName: rowGroup
+              });
+            } catch {
+              // ten wiersz nie należy do użytkownika – pomijamy
+            }
           }
 
-          const decryptedClasses = await Promise.all(rows.map(async r => {
-            const payload = await decryptPayload(r[6].value, key);
-            return {
-              id: r[0].value,
-              weekRange: r[1].value,
-              dayName: r[2].value,
-              date: r[3].value,
-              time: r[4].value,
-              type: r[5].value,
-              title: payload.title,
-              room: payload.room,
-              teacher: payload.teacher,
-              notes: payload.notes,
-              meetingLink: payload.meetingLink || ""
-            };
-          }));
-
-          setSchedule(decryptedClasses);
-          if (!selectedWeek && decryptedClasses.length > 0) {
-            setSelectedWeek(decryptedClasses[0].weekRange);
+          if (decrypted.length === 0) {
+            throw new Error(
+              "Nieprawidłowe hasło – nie udało się odszyfrować żadnego wpisu.\n\n" +
+              "Jeśli Twoja grupa nie ma jeszcze żadnych zajęć, poproś administratora " +
+              "o dodanie pierwszego wpisu do bazy."
+            );
           }
 
+          setCryptoKey(key);
+          sessionStorage.setItem("cyber_plan_pass", pass);
+          sessionStorage.setItem("cyber_plan_group", detectedGroup);
+          setCurrentGroup(detectedGroup);
+          setSchedule(decrypted);
           setIsUnlocked(true);
           setStatusMsg("");
         } catch (err) {
@@ -169,8 +222,29 @@
         }
       };
 
+      // -----------------------------------------------------------------------
+      // SORTOWANIE TYGODNI
+      // -----------------------------------------------------------------------
+      const sortedWeeks = useMemo(() => {
+        const unique = [...new Set(schedule.map(c => c.weekRange).filter(Boolean))];
+        return unique.sort((a, b) => parseDateToAcademicOrder(a) - parseDateToAcademicOrder(b));
+      }, [schedule]);
+
+      useEffect(() => {
+        if (sortedWeeks.length > 0 && (!selectedWeek || !sortedWeeks.includes(selectedWeek))) {
+          setSelectedWeek(sortedWeeks[0]);
+        }
+      }, [sortedWeeks, selectedWeek]);
+
+      // -----------------------------------------------------------------------
+      // ZAPIS (INSERT / UPDATE) – group_name automatycznie z aktywnej grupy
+      // -----------------------------------------------------------------------
       const handleSave = async (e) => {
         e.preventDefault();
+        if (!currentGroup) {
+          alert("Brak aktywnej grupy – zaloguj się ponownie.");
+          return;
+        }
         setLoading(true);
         setStatusMsg("Szyfrowanie i zapis w SQLite...");
         try {
@@ -184,7 +258,7 @@
 
           if (isNewClass) {
             await queryTurso([{
-              sql: "INSERT INTO classes (id, week_range, day_name, day_date, time, type, enc_payload, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+              sql: "INSERT INTO classes (id, week_range, day_name, day_date, time, type, enc_payload, group_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
               args: [
                 { type: "text", value: modalClass.id },
                 { type: "text", value: modalClass.weekRange },
@@ -192,14 +266,15 @@
                 { type: "text", value: modalClass.date },
                 { type: "text", value: modalClass.time },
                 { type: "text", value: modalClass.type },
-                { type: "text", value: enc }
+                { type: "text", value: enc },
+                { type: "text", value: currentGroup }
               ]
             }]);
-            setSchedule([...schedule, { ...modalClass }]);
+            setSchedule(prev => [...prev, { ...modalClass, groupName: currentGroup }]);
             setSelectedWeek(modalClass.weekRange);
           } else {
             await queryTurso([{
-              sql: "UPDATE classes SET week_range = ?, day_name = ?, day_date = ?, time = ?, type = ?, enc_payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              sql: "UPDATE classes SET week_range = ?, day_name = ?, day_date = ?, time = ?, type = ?, enc_payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND group_name = ?",
               args: [
                 { type: "text", value: modalClass.weekRange },
                 { type: "text", value: modalClass.dayName },
@@ -207,10 +282,11 @@
                 { type: "text", value: modalClass.time },
                 { type: "text", value: modalClass.type },
                 { type: "text", value: enc },
-                { type: "text", value: modalClass.id }
+                { type: "text", value: modalClass.id },
+                { type: "text", value: currentGroup }
               ]
             }]);
-            setSchedule(schedule.map(c => c.id === modalClass.id ? { ...modalClass } : c));
+            setSchedule(prev => prev.map(c => c.id === modalClass.id ? { ...modalClass, groupName: currentGroup } : c));
           }
 
           setModalClass(null);
@@ -222,24 +298,23 @@
         }
       };
 
+      // -----------------------------------------------------------------------
+      // USUWANIE – z dodatkowym warunkiem grupy
+      // -----------------------------------------------------------------------
       const handleDelete = async (classId) => {
         if (!confirm("Czy na pewno chcesz usunąć te zajęcia z bazy SQLite?")) return;
         setLoading(true);
         setStatusMsg("Usuwanie z SQLite...");
         try {
           await queryTurso([{
-            sql: "DELETE FROM classes WHERE id = ?",
-            args: [{ type: "text", value: classId }]
+            sql: "DELETE FROM classes WHERE id = ? AND group_name = ?",
+            args: [
+              { type: "text", value: classId },
+              { type: "text", value: currentGroup }
+            ]
           }]);
 
-          const updated = schedule.filter(c => c.id !== classId);
-          setSchedule(updated);
-
-          const remainingWeeks = [...new Set(updated.map(c => c.weekRange))];
-          if (!remainingWeeks.includes(selectedWeek)) {
-            setSelectedWeek(remainingWeeks[0] || "");
-          }
-
+          setSchedule(prev => prev.filter(c => c.id !== classId));
           if (modalClass && modalClass.id === classId) {
             setModalClass(null);
           }
@@ -251,13 +326,16 @@
         }
       };
 
+      // -----------------------------------------------------------------------
+      // MODALE
+      // -----------------------------------------------------------------------
       const openAddModal = () => {
         setIsNewClass(true);
         setModalClass({
           id: "c_" + crypto.randomUUID(),
-          weekRange: selectedWeek || "01.10-07.10",
+          weekRange: selectedWeek || (sortedWeeks[0] || "05.10-11.10"),
           dayName: "Poniedziałek",
-          date: "01.10",
+          date: "05.10",
           time: "16:00 - 18:15",
           type: "lab",
           title: "",
@@ -273,10 +351,17 @@
         setModalClass({ ...cls });
       };
 
+      // -----------------------------------------------------------------------
+      // AUTO-ODBLOKOWANIE Z SESJI
+      // -----------------------------------------------------------------------
       useEffect(() => {
         if (password) unlockAndFetch(password);
+        // eslint-disable-next-line
       }, []);
 
+      // -----------------------------------------------------------------------
+      // EKRAN LOGOWANIA
+      // -----------------------------------------------------------------------
       if (!isUnlocked) {
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
@@ -285,9 +370,9 @@
                 <div className="w-14 h-14 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
                   <i className="fa-solid fa-lock"></i>
                 </div>
-                <h2 className="text-xl font-bold tracking-tight">Plan s2_IP 3Z/1 Cyber</h2>
+                <h2 className="text-xl font-bold tracking-tight">Plan Zajęć</h2>
                 <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
-                  Podaj wspólne hasło grupy, aby zdeszyfrować bazę SQLite (AES-256-GCM).
+                  Podaj hasło grupy, aby zdeszyfrować bazę SQLite (AES-256-GCM).
                 </p>
               </div>
 
@@ -300,6 +385,7 @@
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 transition"
                     required
+                    autoFocus
                   />
                 </div>
                 <button
@@ -320,14 +406,27 @@
                   )}
                 </button>
               </form>
+
+              <p className="text-[11px] text-slate-500 mt-5 text-center leading-relaxed">
+                Wpisz hasło swojej grupy. Grupa zostanie rozpoznana
+                automatycznie na podstawie odszyfrowanych danych.
+              </p>
             </div>
           </div>
         );
       }
 
-      const availableWeeks = [...new Set(schedule.map(c => c.weekRange))];
-      const activeWeek = selectedWeek || availableWeeks[0] || "";
-      const filteredClasses = schedule.filter(c => c.weekRange === activeWeek);
+      // -----------------------------------------------------------------------
+      // FILTROWANIE I GRUPOWANIE ZAJĘĆ
+      // -----------------------------------------------------------------------
+      const activeWeek = selectedWeek || sortedWeeks[0] || "";
+      const filteredClasses = schedule
+        .filter(c => c.weekRange === activeWeek)
+        .sort((a, b) => {
+          const dayDiff = (DAY_ORDER[a.dayName] || 99) - (DAY_ORDER[b.dayName] || 99);
+          if (dayDiff !== 0) return dayDiff;
+          return a.time.localeCompare(b.time);
+        });
 
       const groupedByDay = filteredClasses.reduce((acc, curr) => {
         const key = `${curr.dayName} (${curr.date})`;
@@ -336,20 +435,27 @@
         return acc;
       }, {});
 
+      const headerTitle = groupTitle(currentGroup);
+      const headerLabel = currentGroup || "—";
+
       return (
         <div className="max-w-7xl mx-auto px-4 py-8">
-          {/* Header */}
           <header className="flex flex-col md:flex-row md:items-center justify-between pb-6 mb-8 border-b border-slate-800 gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                  s2_IP 3Z/1 Cyberbezpieczeństwo
+                  {headerTitle}
                 </h1>
                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-3 py-1 rounded-full font-mono flex items-center gap-1.5">
                   <i className="fa-solid fa-database"></i> Turso SQLite + E2EE
                 </span>
+                <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs px-3 py-1 rounded-full font-mono flex items-center gap-1.5">
+                  <i className="fa-solid fa-users"></i> grupa: {headerLabel}
+                </span>
               </div>
-              <p className="text-slate-400 text-sm mt-1">Zmiany i nowe wpisy zapisują się bezpośrednio w chmurze SQLite i są widoczne po F5</p>
+              <p className="text-slate-400 text-sm mt-1">
+                Plan posortowany chronologicznie • Zmiany zapisują się bezpośrednio w chmurze SQLite
+              </p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -368,7 +474,15 @@
                 <i className="fa-solid fa-rotate"></i> Odśwież
               </button>
               <button
-                onClick={() => { sessionStorage.removeItem("cyber_plan_pass"); setIsUnlocked(false); }}
+                onClick={() => {
+                  sessionStorage.removeItem("cyber_plan_pass");
+                  sessionStorage.removeItem("cyber_plan_group");
+                  setPassword("");
+                  setCurrentGroup("");
+                  setSchedule([]);
+                  setSelectedWeek("");
+                  setIsUnlocked(false);
+                }}
                 className="text-xs bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 px-3 py-2 rounded-lg transition flex items-center gap-1.5"
               >
                 <i className="fa-solid fa-lock"></i> Zablokuj
@@ -376,14 +490,13 @@
             </div>
           </header>
 
-          {/* Wybór tygodnia */}
-          {availableWeeks.length > 0 && (
+          {sortedWeeks.length > 0 && (
             <div className="mb-8">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 block">
-                Wybierz tydzień:
+                Wybierz tydzień (posortowane chronologicznie):
               </label>
-              <div className="flex gap-2 overflow-x-auto pb-3">
-                {availableWeeks.map((week, idx) => (
+              <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-thin">
+                {sortedWeeks.map((week, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedWeek(week)}
@@ -400,13 +513,12 @@
             </div>
           )}
 
-          {/* Kafelki z planem */}
           <div className="space-y-6">
             {schedule.length === 0 ? (
               <div className="text-center py-16 text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800 p-6">
                 <i className="fa-regular fa-calendar-xmark text-4xl mb-3 text-slate-600"></i>
                 <p className="text-base font-medium text-slate-300 mb-2">Baza jest pusta</p>
-                <p className="text-xs text-slate-500 mb-5">Nie znaleziono żadnych wpisów w tabeli SQLite.</p>
+                <p className="text-xs text-slate-500 mb-5">Nie znaleziono żadnych wpisów dla grupy „{headerLabel}”.</p>
                 <button
                   onClick={openAddModal}
                   className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition"
@@ -428,8 +540,8 @@
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groupedByDay[dayTitle].map((cls) => (
-                      <div 
-                        key={cls.id} 
+                      <div
+                        key={cls.id}
                         className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition shadow-sm flex flex-col justify-between"
                       >
                         <div>
@@ -463,7 +575,6 @@
                               <span>{cls.teacher || "Nie określono"}</span>
                             </div>
 
-                            {/* Przycisk dołączenia do Zoom / Teams / Meet */}
                             {cls.meetingLink && (
                               <div className="pt-1">
                                 <a
@@ -473,7 +584,7 @@
                                   className="inline-flex items-center gap-2 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
                                 >
                                   <i className="fa-solid fa-video text-blue-400"></i>
-                                  <span>Dołącz do spotkania (Zoom/Online)</span>
+                                  <span>Dołącz do spotkania</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square text-[10px] text-blue-400 ml-0.5"></i>
                                 </a>
                               </div>
@@ -510,15 +621,14 @@
             )}
           </div>
 
-          {/* Modal Tworzenia / Edycji */}
           {modalClass && (
             <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
                   <h3 className="font-bold text-lg text-slate-100">
-                    {isNewClass ? "Dodaj nowe zajęcia" : "Edycja zajęć w SQLite"}
+                    {isNewClass ? `Dodaj nowe zajęcia (grupa: ${headerLabel})` : "Edycja zajęć w SQLite"}
                   </h3>
-                  <button 
+                  <button
                     onClick={() => setModalClass(null)}
                     className="text-slate-400 hover:text-slate-200">
                     <i className="fa-solid fa-xmark text-lg"></i>
@@ -601,10 +711,9 @@
                     />
                   </div>
 
-                  {/* Pole na link do spotkania Zoom / Teams / Meet */}
                   <div>
                     <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider block mb-1">
-                      <i className="fa-solid fa-video mr-1"></i> Link do spotkania online (Zoom, Teams, Meet)
+                      <i className="fa-solid fa-video mr-1"></i> Link do spotkania online
                     </label>
                     <input
                       type="url"
