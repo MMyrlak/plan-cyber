@@ -71,7 +71,7 @@
         const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
         return JSON.parse(new TextDecoder().decode(decrypted));
       } catch (err) {
-        throw new Error("Błędne hasło grupy lub nieprawidłowe dane");
+        throw new Error("Błędne hasło grupy lub uszkodzone dane");
       }
     }
 
@@ -112,11 +112,11 @@
       
       const [schedule, setSchedule] = useState([]);
       const [selectedWeek, setSelectedWeek] = useState("");
-      const [editingClass, setEditingClass] = useState(null);
+      const [modalClass, setModalClass] = useState(null);
+      const [isNewClass, setIsNewClass] = useState(false);
       const [loading, setLoading] = useState(false);
       const [statusMsg, setStatusMsg] = useState("");
 
-      // Pobranie danych z SQLite i deszyfrowanie w pamięci
       const unlockAndFetch = async (pass) => {
         if (!pass) return;
         setLoading(true);
@@ -126,13 +126,13 @@
           setCryptoKey(key);
           sessionStorage.setItem("cyber_plan_pass", pass);
 
-          const results = await queryTurso(["SELECT * FROM classes;"]);
+          const results = await queryTurso(["SELECT * FROM classes ORDER BY updated_at ASC;"]);
           const rows = results[0]?.response?.result?.rows || [];
 
           if (rows.length === 0) {
             setSchedule([]);
+            setIsUnlocked(true);
             setStatusMsg("");
-            alert("Baza SQLite w Turso jest obecnie pusta.");
             return;
           }
 
@@ -148,7 +148,8 @@
               title: payload.title,
               room: payload.room,
               teacher: payload.teacher,
-              notes: payload.notes
+              notes: payload.notes,
+              meetingLink: payload.meetingLink || ""
             };
           }));
 
@@ -168,31 +169,51 @@
         }
       };
 
-      // Zapis zaktualizowanej sali / przedmiotu do SQLite
-      const handleSaveEdit = async (e) => {
+      const handleSave = async (e) => {
         e.preventDefault();
         setLoading(true);
         setStatusMsg("Szyfrowanie i zapis w SQLite...");
         try {
           const enc = await encryptPayload({
-            title: editingClass.title,
-            room: editingClass.room,
-            teacher: editingClass.teacher,
-            notes: editingClass.notes || ""
+            title: modalClass.title,
+            room: modalClass.room,
+            teacher: modalClass.teacher,
+            notes: modalClass.notes || "",
+            meetingLink: modalClass.meetingLink ? modalClass.meetingLink.trim() : ""
           }, cryptoKey);
 
-          await queryTurso([{
-            sql: "UPDATE classes SET time = ?, type = ?, enc_payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            args: [
-              { type: "text", value: editingClass.time },
-              { type: "text", value: editingClass.type },
-              { type: "text", value: enc },
-              { type: "text", value: editingClass.id }
-            ]
-          }]);
+          if (isNewClass) {
+            await queryTurso([{
+              sql: "INSERT INTO classes (id, week_range, day_name, day_date, time, type, enc_payload, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+              args: [
+                { type: "text", value: modalClass.id },
+                { type: "text", value: modalClass.weekRange },
+                { type: "text", value: modalClass.dayName },
+                { type: "text", value: modalClass.date },
+                { type: "text", value: modalClass.time },
+                { type: "text", value: modalClass.type },
+                { type: "text", value: enc }
+              ]
+            }]);
+            setSchedule([...schedule, { ...modalClass }]);
+            setSelectedWeek(modalClass.weekRange);
+          } else {
+            await queryTurso([{
+              sql: "UPDATE classes SET week_range = ?, day_name = ?, day_date = ?, time = ?, type = ?, enc_payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              args: [
+                { type: "text", value: modalClass.weekRange },
+                { type: "text", value: modalClass.dayName },
+                { type: "text", value: modalClass.date },
+                { type: "text", value: modalClass.time },
+                { type: "text", value: modalClass.type },
+                { type: "text", value: enc },
+                { type: "text", value: modalClass.id }
+              ]
+            }]);
+            setSchedule(schedule.map(c => c.id === modalClass.id ? { ...modalClass } : c));
+          }
 
-          setSchedule(schedule.map(c => c.id === editingClass.id ? { ...editingClass } : c));
-          setEditingClass(null);
+          setModalClass(null);
         } catch (err) {
           alert("Błąd zapisu do bazy: " + err.message);
         } finally {
@@ -201,11 +222,61 @@
         }
       };
 
+      const handleDelete = async (classId) => {
+        if (!confirm("Czy na pewno chcesz usunąć te zajęcia z bazy SQLite?")) return;
+        setLoading(true);
+        setStatusMsg("Usuwanie z SQLite...");
+        try {
+          await queryTurso([{
+            sql: "DELETE FROM classes WHERE id = ?",
+            args: [{ type: "text", value: classId }]
+          }]);
+
+          const updated = schedule.filter(c => c.id !== classId);
+          setSchedule(updated);
+
+          const remainingWeeks = [...new Set(updated.map(c => c.weekRange))];
+          if (!remainingWeeks.includes(selectedWeek)) {
+            setSelectedWeek(remainingWeeks[0] || "");
+          }
+
+          if (modalClass && modalClass.id === classId) {
+            setModalClass(null);
+          }
+        } catch (err) {
+          alert("Błąd usuwania z bazy: " + err.message);
+        } finally {
+          setLoading(false);
+          setStatusMsg("");
+        }
+      };
+
+      const openAddModal = () => {
+        setIsNewClass(true);
+        setModalClass({
+          id: "c_" + crypto.randomUUID(),
+          weekRange: selectedWeek || "01.10-07.10",
+          dayName: "Poniedziałek",
+          date: "01.10",
+          time: "16:00 - 18:15",
+          type: "lab",
+          title: "",
+          room: "",
+          teacher: "",
+          notes: "",
+          meetingLink: ""
+        });
+      };
+
+      const openEditModal = (cls) => {
+        setIsNewClass(false);
+        setModalClass({ ...cls });
+      };
+
       useEffect(() => {
         if (password) unlockAndFetch(password);
       }, []);
 
-      // Ekran podania hasła
       if (!isUnlocked) {
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
@@ -255,7 +326,7 @@
       }
 
       const availableWeeks = [...new Set(schedule.map(c => c.weekRange))];
-      const activeWeek = selectedWeek || availableWeeks[0];
+      const activeWeek = selectedWeek || availableWeeks[0] || "";
       const filteredClasses = schedule.filter(c => c.weekRange === activeWeek);
 
       const groupedByDay = filteredClasses.reduce((acc, curr) => {
@@ -278,16 +349,23 @@
                   <i className="fa-solid fa-database"></i> Turso SQLite + E2EE
                 </span>
               </div>
-              <p className="text-slate-400 text-sm mt-1">Zmiany sal zapisują się bezpośrednio w chmurze SQLite i są widoczne po F5 dla każdego</p>
+              <p className="text-slate-400 text-sm mt-1">Zmiany i nowe wpisy zapisują się bezpośrednio w chmurze SQLite i są widoczne po F5</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={openAddModal}
+                disabled={loading}
+                className="text-xs bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
+              >
+                <i className="fa-solid fa-plus"></i> Dodaj zajęcia
+              </button>
               <button
                 onClick={() => unlockAndFetch(password)}
                 className="text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 px-3 py-2 rounded-lg border border-slate-800 transition flex items-center gap-1.5"
                 title="Odśwież dane z bazy"
               >
-                <i className="fa-solid fa-arrows-rotate"></i> Odśwież
+                <i className="fa-solid fa-rotate"></i> Odśwież
               </button>
               <button
                 onClick={() => { sessionStorage.removeItem("cyber_plan_pass"); setIsUnlocked(false); }}
@@ -299,137 +377,241 @@
           </header>
 
           {/* Wybór tygodnia */}
-          <div className="mb-8">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 block">
-              Wybierz tydzień:
-            </label>
-            <div className="flex gap-2 overflow-x-auto pb-3">
-              {availableWeeks.map((week, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setSelectedWeek(week)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition border ${
-                    activeWeek === week
-                      ? "bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20 font-bold"
-                      : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
-                  }`}
-                >
-                  {week}
-                </button>
-              ))}
+          {availableWeeks.length > 0 && (
+            <div className="mb-8">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 block">
+                Wybierz tydzień:
+              </label>
+              <div className="flex gap-2 overflow-x-auto pb-3">
+                {availableWeeks.map((week, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedWeek(week)}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition border ${
+                      activeWeek === week
+                        ? "bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20 font-bold"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                    }`}
+                  >
+                    {week}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Grupy dni z kafelkami */}
+          {/* Kafelki z planem */}
           <div className="space-y-6">
-            {Object.keys(groupedByDay).map((dayTitle, idx) => (
-              <div key={idx} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur">
-                <div className="flex items-center gap-2.5 border-b border-slate-800/60 pb-3 mb-4">
-                  <i className="fa-regular fa-calendar text-cyan-400 text-sm"></i>
-                  <span className="text-base font-bold text-slate-100">{dayTitle}</span>
-                </div>
+            {schedule.length === 0 ? (
+              <div className="text-center py-16 text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800 p-6">
+                <i className="fa-regular fa-calendar-xmark text-4xl mb-3 text-slate-600"></i>
+                <p className="text-base font-medium text-slate-300 mb-2">Baza jest pusta</p>
+                <p className="text-xs text-slate-500 mb-5">Nie znaleziono żadnych wpisów w tabeli SQLite.</p>
+                <button
+                  onClick={openAddModal}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition"
+                >
+                  <i className="fa-solid fa-plus mr-1.5"></i> Dodaj pierwsze zajęcia
+                </button>
+              </div>
+            ) : Object.keys(groupedByDay).length === 0 ? (
+              <div className="text-center py-12 text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800">
+                Brak zajęć w wybranym tygodniu ({activeWeek}).
+              </div>
+            ) : (
+              Object.keys(groupedByDay).map((dayTitle, idx) => (
+                <div key={idx} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800/60 pb-3 mb-4">
+                    <i className="fa-regular fa-calendar text-cyan-400 text-sm"></i>
+                    <span className="text-base font-bold text-slate-100">{dayTitle}</span>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groupedByDay[dayTitle].map((cls) => (
-                    <div 
-                      key={cls.id} 
-                      className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition shadow-sm flex flex-col justify-between"
-                    >
-                      <div>
-                        {/* Typ i Godzina */}
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                            cls.type === 'lab' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                            cls.type === 'wyk' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
-                            'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          }`}>
-                            {cls.type === 'lab' ? 'LABORATORIUM' : cls.type === 'wyk' ? 'WYKŁAD' : 'SEMINARIUM'}
-                          </span>
-                          <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
-                            <i className="fa-regular fa-clock text-slate-500"></i> {cls.time}
-                          </span>
-                        </div>
-
-                        {/* Tytuł */}
-                        <h3 className="font-semibold text-slate-100 text-sm leading-snug mb-3">
-                          {cls.title}
-                        </h3>
-
-                        {/* Sala i Prowadzący */}
-                        <div className="space-y-2 text-xs">
-                          <div className="flex items-start gap-2">
-                            <i className="fa-solid fa-location-dot mt-0.5 text-amber-400 w-3 text-center"></i>
-                            <span className="font-medium bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded border border-amber-500/20">
-                              {cls.room || "Brak sali (kliknij edytuj)"}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupedByDay[dayTitle].map((cls) => (
+                      <div 
+                        key={cls.id} 
+                        className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition shadow-sm flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2.5">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              cls.type === 'lab' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                              cls.type === 'wyk' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
+                              'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            }`}>
+                              {cls.type === 'lab' ? 'LABORATORIUM' : cls.type === 'wyk' ? 'WYKŁAD' : 'SEMINARIUM'}
+                            </span>
+                            <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
+                              <i className="fa-regular fa-clock text-slate-500"></i> {cls.time}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <i className="fa-solid fa-user-tie text-slate-500 w-3 text-center"></i>
-                            <span>{cls.teacher}</span>
-                          </div>
+                          <h3 className="font-semibold text-slate-100 text-sm leading-snug mb-3">
+                            {cls.title}
+                          </h3>
 
-                          {cls.notes && (
-                            <div className="mt-2.5 p-2 bg-slate-950/70 border border-slate-800 rounded text-slate-300 italic">
-                              <i className="fa-regular fa-note-sticky mr-1.5 text-cyan-400"></i>{cls.notes}
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-start gap-2">
+                              <i className="fa-solid fa-location-dot mt-0.5 text-amber-400 w-3 text-center"></i>
+                              <span className="font-medium bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded border border-amber-500/20">
+                                {cls.room || "Brak sali"}
+                              </span>
                             </div>
-                          )}
+
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <i className="fa-solid fa-user-tie text-slate-500 w-3 text-center"></i>
+                              <span>{cls.teacher || "Nie określono"}</span>
+                            </div>
+
+                            {/* Przycisk dołączenia do Zoom / Teams / Meet */}
+                            {cls.meetingLink && (
+                              <div className="pt-1">
+                                <a
+                                  href={cls.meetingLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+                                >
+                                  <i className="fa-solid fa-video text-blue-400"></i>
+                                  <span>Dołącz do spotkania (Zoom/Online)</span>
+                                  <i className="fa-solid fa-arrow-up-right-from-square text-[10px] text-blue-400 ml-0.5"></i>
+                                </a>
+                              </div>
+                            )}
+
+                            {cls.notes && (
+                              <div className="mt-2.5 p-2 bg-slate-950/70 border border-slate-800 rounded text-slate-300 italic">
+                                <i className="fa-regular fa-note-sticky mr-1.5 text-cyan-400"></i>{cls.notes}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                          <button
+                            onClick={() => handleDelete(cls.id)}
+                            className="text-xs text-rose-400 hover:text-rose-300 p-1.5 rounded hover:bg-rose-950/40 transition"
+                            title="Usuń te zajęcia"
+                          >
+                            <i className="fa-solid fa-trash-can"></i>
+                          </button>
+                          <button
+                            onClick={() => openEditModal(cls)}
+                            className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-cyan-950/50 transition"
+                          >
+                            <i className="fa-solid fa-pen-to-square"></i> Edytuj
+                          </button>
                         </div>
                       </div>
-
-                      {/* Przycisk Edycji */}
-                      <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
-                        <button
-                          onClick={() => setEditingClass(cls)}
-                          className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-cyan-950/50 transition"
-                        >
-                          <i className="fa-solid fa-pen-to-square"></i> Edytuj salę / dane
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
-          {/* Modal Edycji */}
-          {editingClass && (
+          {/* Modal Tworzenia / Edycji */}
+          {modalClass && (
             <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
-                  <h3 className="font-bold text-lg text-slate-100">Edycja zajęć w SQLite</h3>
+                  <h3 className="font-bold text-lg text-slate-100">
+                    {isNewClass ? "Dodaj nowe zajęcia" : "Edycja zajęć w SQLite"}
+                  </h3>
                   <button 
-                    onClick={() => setEditingClass(null)}
+                    onClick={() => setModalClass(null)}
                     className="text-slate-400 hover:text-slate-200">
                     <i className="fa-solid fa-xmark text-lg"></i>
                   </button>
                 </div>
 
-                <form onSubmit={handleSaveEdit} className="space-y-4">
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                      Zakres tygodnia (np. 16.11-22.11)
+                    </label>
+                    <input
+                      type="text"
+                      value={modalClass.weekRange}
+                      onChange={(e) => setModalClass({ ...modalClass, weekRange: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                      placeholder="DD.MM-DD.MM"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                        Dzień tygodnia
+                      </label>
+                      <select
+                        value={modalClass.dayName}
+                        onChange={(e) => setModalClass({ ...modalClass, dayName: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                      >
+                        <option value="Poniedziałek">Poniedziałek</option>
+                        <option value="Wtorek">Wtorek</option>
+                        <option value="Środa">Środa</option>
+                        <option value="Czwartek">Czwartek</option>
+                        <option value="Piątek">Piątek</option>
+                        <option value="Sobota">Sobota</option>
+                        <option value="Niedziela">Niedziela</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                        Data (np. 16.11)
+                      </label>
+                      <input
+                        type="text"
+                        value={modalClass.date}
+                        onChange={(e) => setModalClass({ ...modalClass, date: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                        placeholder="DD.MM"
+                        required
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                       Nazwa przedmiotu
                     </label>
                     <input
                       type="text"
-                      value={editingClass.title}
-                      onChange={(e) => setEditingClass({ ...editingClass, title: e.target.value })}
+                      value={modalClass.title}
+                      onChange={(e) => setModalClass({ ...modalClass, title: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                      placeholder="np. Postincydentalna analiza laboratoryjna"
                       required
                     />
                   </div>
 
                   <div>
                     <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider block mb-1">
-                      Sala (zmień lub dodaj)
+                      Sala
                     </label>
                     <input
                       type="text"
-                      value={editingClass.room}
-                      onChange={(e) => setEditingClass({ ...editingClass, room: e.target.value })}
+                      value={modalClass.room}
+                      onChange={(e) => setModalClass({ ...modalClass, room: e.target.value })}
                       className="w-full bg-slate-950 border border-amber-500/40 rounded-lg p-2.5 text-sm focus:outline-none focus:border-amber-400 text-amber-200 font-medium"
-                      placeholder="np. 3072s.lab. 353, Rockwell-Francuska"
+                      placeholder="np. 3072 - s.lab. 353, Rockwell-Francuska"
+                    />
+                  </div>
+
+                  {/* Pole na link do spotkania Zoom / Teams / Meet */}
+                  <div>
+                    <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider block mb-1">
+                      <i className="fa-solid fa-video mr-1"></i> Link do spotkania online (Zoom, Teams, Meet)
+                    </label>
+                    <input
+                      type="url"
+                      value={modalClass.meetingLink || ""}
+                      onChange={(e) => setModalClass({ ...modalClass, meetingLink: e.target.value })}
+                      className="w-full bg-slate-950 border border-blue-500/40 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-400 text-blue-200 font-mono"
+                      placeholder="https://zoom.us/j/... lub https://teams.microsoft.com/..."
                     />
                   </div>
 
@@ -440,9 +622,10 @@
                       </label>
                       <input
                         type="text"
-                        value={editingClass.time}
-                        onChange={(e) => setEditingClass({ ...editingClass, time: e.target.value })}
+                        value={modalClass.time}
+                        onChange={(e) => setModalClass({ ...modalClass, time: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                        placeholder="16:00 - 18:15"
                         required
                       />
                     </div>
@@ -451,8 +634,8 @@
                         Typ zajęć
                       </label>
                       <select
-                        value={editingClass.type}
-                        onChange={(e) => setEditingClass({ ...editingClass, type: e.target.value })}
+                        value={modalClass.type}
+                        onChange={(e) => setModalClass({ ...modalClass, type: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
                       >
                         <option value="lab">Laboratorium</option>
@@ -468,9 +651,10 @@
                     </label>
                     <input
                       type="text"
-                      value={editingClass.teacher}
-                      onChange={(e) => setEditingClass({ ...editingClass, teacher: e.target.value })}
+                      value={modalClass.teacher}
+                      onChange={(e) => setModalClass({ ...modalClass, teacher: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
+                      placeholder="Tytuł, Imię i Nazwisko"
                     />
                   </div>
 
@@ -480,28 +664,40 @@
                     </label>
                     <textarea
                       rows="2"
-                      value={editingClass.notes || ""}
-                      onChange={(e) => setEditingClass({ ...editingClass, notes: e.target.value })}
+                      value={modalClass.notes || ""}
+                      onChange={(e) => setModalClass({ ...modalClass, notes: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-cyan-400 text-slate-100"
-                      placeholder="np. Kolokwium, wejściówka..."
+                      placeholder="np. Hasło do spotkania, kolokwium..."
                     ></textarea>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setEditingClass(null)}
-                      className="px-4 py-2 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
-                    >
-                      Anuluj
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-5 py-2 rounded-lg text-sm bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20 disabled:opacity-50"
-                    >
-                      {loading ? "Zapisywanie w SQLite..." : "Zapisz i zaszyfruj"}
-                    </button>
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                    {!isNewClass ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(modalClass.id)}
+                        className="px-3.5 py-2 rounded-lg text-sm bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-trash-can"></i> Usuń
+                      </button>
+                    ) : <div></div>}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setModalClass(null)}
+                        className="px-4 py-2 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+                      >
+                        Anuluj
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-5 py-2 rounded-lg text-sm bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                      >
+                        {loading ? "Zapisywanie w SQLite..." : (isNewClass ? "Dodaj do planu" : "Zapisz zmiany")}
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
